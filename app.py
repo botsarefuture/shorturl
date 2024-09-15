@@ -120,10 +120,10 @@ def create_short_url():
     
     existing_entry = urls_collection.find_one({'short_hash': short_hash})
     if existing_entry:
-        return jsonify({'short_url': f'http://luova.link/{short_hash}'})
+        return jsonify({'short_url': f'https://link.luova.club/{short_hash}'})
     
     urls_collection.insert_one({'long_url': long_url, 'short_hash': short_hash, 'user_id': user_id})
-    return jsonify({'short_url': f'http://luova.link/{short_hash}'})
+    return jsonify({'short_url': f'https://link.luova.club/{short_hash}'})
 
 @app.route('/<short_hash>', methods=['GET'])
 @limiter.limit('100 per minute')

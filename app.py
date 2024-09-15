@@ -1,14 +1,15 @@
+from utils import process_object_ids
 from flask import Flask, request, jsonify, redirect
 from pymongo import MongoClient
-from bson.objectid import ObjectId
 import hashlib
 import datetime
-import bcrypt
 from itsdangerous import URLSafeTimedSerializer
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 import os
 import logging
+from matomo import MatomoClient  # Updated import for Matomo
+from passman import PasswordManager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -16,8 +17,10 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 SECRET_KEY = os.getenv('SECRET_KEY', 'your_secret_key')
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://95.216.148.93:27017/')
 RATE_LIMIT = os.getenv('RATE_LIMIT', '5 per minute')
+MATOMO_URL = os.getenv('MATOMO_URL', 'https://matomo.luova.club/matomo.php')
+MATOMO_SITE_ID = os.getenv('MATOMO_SITE_ID', '3')
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
@@ -32,8 +35,12 @@ serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 limiter = Limiter(
     get_remote_address,
     app=app,
-    default_limits=[RATE_LIMIT]
+    default_limits=[RATE_LIMIT],
+    storage_uri=MONGO_URI
 )
+
+# Initialize Matomo tracker
+matomo_client = MatomoClient(MATOMO_URL, MATOMO_SITE_ID)
 
 def generate_token(user_id):
     token = serializer.dumps(str(user_id), salt='api-token')
@@ -54,8 +61,9 @@ def verify_token(token):
         if not token_data:
             return None
 
-        current_time = datetime.datetime.now(datetime.timezone.utc)
+        current_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         expires_at_aware = token_data['expires_at']
+        print(current_time, expires_at_aware)
         if expires_at_aware < current_time:
             return None
 
@@ -78,7 +86,7 @@ def register():
     if existing_user:
         return jsonify({'error': 'Username already exists'}), 409
     
-    hashed_password = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+    hashed_password = PasswordManager.hash_password(password)
 
     users_collection.insert_one({
         'username': username,
@@ -86,6 +94,9 @@ def register():
         'created_at': datetime.datetime.now(datetime.timezone.utc)
     })
 
+    # Track user registration with Matomo
+    matomo_client.track_event(request,category='User', action='Register', name=username)
+    
     return jsonify({'message': 'User registered successfully'}), 201
 
 @app.route('/api/login', methods=['POST'])
@@ -96,10 +107,14 @@ def login():
     password = data.get('password')
 
     user = users_collection.find_one({'username': username})
-    if not user or not bcrypt.checkpw(password.encode(), user['password_hash']):
+    if not user or not PasswordManager.check_password(user['password_hash'], password):
         return jsonify({'error': 'Invalid credentials'}), 401
 
     token = generate_token(user['_id'])
+    
+    # Track user login with Matomo
+    matomo_client.track_event(request,category='User', action='Login', name=username)
+    
     return jsonify({'token': token})
 
 @app.route('/api/create', methods=['POST'])
@@ -123,6 +138,10 @@ def create_short_url():
         return jsonify({'short_url': f'https://link.luova.club/{short_hash}'})
     
     urls_collection.insert_one({'long_url': long_url, 'short_hash': short_hash, 'user_id': user_id})
+
+    # Track URL creation with Matomo
+    matomo_client.track_event(request,category='URL', action='Create', name=short_hash)
+    
     return jsonify({'short_url': f'https://link.luova.club/{short_hash}'})
 
 @app.route('/<short_hash>', methods=['GET'])
@@ -136,6 +155,10 @@ def redirect_to_long_url(short_hash):
             'user_agent': request.headers.get('User-Agent'),
             'ip_address': request.remote_addr
         })
+        
+        # Track URL redirection with Matomo
+        matomo_client.track_event(request,category='URL', action='Redirect', name=short_hash)
+        
         return redirect(entry['long_url'])
     return jsonify({'error': 'URL not found'}), 404
 
@@ -154,7 +177,7 @@ def get_clicks():
     clicks = clicks_collection.find({'short_hash': short_hash, 'user_id': user_id})
     clicks_list = list(clicks)
     
-    return jsonify(clicks_list)
+    return jsonify(process_object_ids(clicks_list))
 
 @app.route('/admin/users', methods=['GET'])
 @limiter.limit('5 per minute')
@@ -162,7 +185,11 @@ def admin_get_users():
     # Admin functionality to list users
     users = users_collection.find()
     user_list = list(users)
-    return jsonify(user_list)
+    
+    # Track admin action with Matomo
+    matomo_client.track_event(request,category='Admin', action='Get Users')
+    
+    return jsonify(process_object_ids(user_list))
 
 @app.route('/admin/urls', methods=['GET'])
 @limiter.limit('5 per minute')
@@ -170,7 +197,11 @@ def admin_get_urls():
     # Admin functionality to list URLs
     urls = urls_collection.find()
     url_list = list(urls)
-    return jsonify(url_list)
+    
+    # Track admin action with Matomo
+    matomo_client.track_event(request,category='Admin', action='Get URLs')
+    
+    return jsonify(process_object_ids(url_list))
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=5000)

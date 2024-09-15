@@ -1,0 +1,6 @@
+Flask==3.0.3
+flask_limiter==3.8.0
+itsdangerous==2.2.0
+pymongo==4.8.0
+python_bcrypt==0.3.2
+Requests==2.32.3

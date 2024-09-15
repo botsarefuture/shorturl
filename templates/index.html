@@ -1,143 +1,197 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>URL Shortener</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Dark mode styles */
-        .dark .bg-gray-100 {
-            background-color: #1a202c; /* Dark background */
-        }
-        .dark .text-gray-800 {
-            color: #e2e8f0; /* Light text */
-        }
-        .dark .bg-white {
-            background-color: #2d3748; /* Darker background for form */
-        }
-        .dark .border-gray-300 {
-            border-color: #4a5568; /* Darker border */
-        }
-        .dark .text-gray-700 {
-            color: #edf2f7; /* Light text for labels */
-        }
-        .dark .text-blue-500 {
-            color: #63b3ed; /* Light color for links */
-        }
-    </style>
-</head>
-<body class="bg-gray-100 text-gray-800">
-    <div class="max-w-3xl mx-auto p-4">
-        <!-- Language and Theme Toggle -->
-        <div class="flex justify-between items-center mb-4">
-            <div>
-                <button id="language-toggle" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    English
-                </button>
-            </div>
-            <div>
-                <button id="theme-toggle" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    Dark Mode
-                </button>
-            </div>
-        </div>
+      /* Dark mode styles */
+      .dark .bg-gray-100 {
+        background-color: #1a202c; /* Dark background */
+      }
+      .dark .text-gray-800 {
+        color: #e2e8f0; /* Light text */
+      }
 
-        <h1 id="page-title" class="text-3xl font-bold mb-4">URL Shortener</h1>
-        <form id="url-form" class="bg-white p-6 rounded-lg shadow-md">
-            <div class="mb-4">
-                <label for="long_url" class="block text-sm font-medium text-gray-700" id="long-url-label">Long URL:</label>
-                <input type="url" id="long_url" name="long_url" required 
-                       class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-            </div>
-            <button type="submit" 
-                    class="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                Create Short URL
-            </button>
-        </form>
-        <hr class="my-6">
-        <div id="short-url-result" class="mt-4">
-            <!-- Short URL will be displayed here -->
+      .dark .text-gray-800 button {
+        color: black; /* Light text */
+      }
+
+      .dark .bg-white {
+        background-color: #2d3748; /* Darker background for form */
+      }
+      .dark .border-gray-300 {
+        border-color: #4a5568; /* Darker border */
+      }
+      .dark .text-gray-700 {
+        color: #edf2f7; /* Light text for labels */
+      }
+      .dark .text-blue-500 {
+        color: #63b3ed; /* Light color for links */
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 text-gray-800">
+    <div class="max-w-3xl mx-auto p-4">
+      <!-- Language and Theme Toggle -->
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <button
+            id="language-toggle"
+            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            English
+          </button>
         </div>
+        <div>
+          <button
+            id="theme-toggle"
+            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Dark Mode
+          </button>
+        </div>
+      </div>
+
+      <h1 id="page-title" class="text-3xl font-bold mb-4">URL Shortener</h1>
+      <form id="url-form" class="bg-white p-6 rounded-lg shadow-md">
+        <div class="mb-4">
+          <label
+            for="long_url"
+            class="block text-sm font-medium text-gray-700"
+            id="long-url-label"
+            >Long URL:</label
+          >
+          <input
+            type="url"
+            id="long_url"
+            name="long_url"
+            required
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          />
+        </div>
+        <button
+          type="submit"
+          class="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        >
+          Create Short URL
+        </button>
+      </form>
+      <hr class="my-6" />
+      <div id="short-url-result" class="mt-4">
+        <!-- Short URL will be displayed here -->
+      </div>
     </div>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Check for saved preferences
-            const darkMode = localStorage.getItem('darkMode') === 'true';
-            const language = localStorage.getItem('language') || 'en';
+      document.addEventListener("DOMContentLoaded", () => {
+        console.log("DOM content loaded");
 
-            if (darkMode) {
-                document.documentElement.classList.add('dark');
-                document.getElementById('theme-toggle').innerText = 'Light Mode';
-            } else {
-                document.getElementById('theme-toggle').innerText = 'Dark Mode';
-            }
+        // Check for saved preferences
+        const darkMode = localStorage.getItem("darkMode") === "true";
+        let language = localStorage.getItem("language") || "en";
 
-            // Language texts
-            const texts = {
-                en: {
-                    title: "URL Shortener",
-                    longUrlLabel: "Long URL:",
-                    createShortUrlButton: "Create Short URL"
-                },
-                fi: {
-                    title: "URL-lyhentäjä",
-                    longUrlLabel: "Pitkä URL:",
-                    createShortUrlButton: "Luo lyhyt URL"
-                }
-            };
+        console.log(`Dark mode is ${darkMode ? "enabled" : "disabled"}`);
+        console.log(`Current language is ${language}`);
 
-            const updateLanguage = (lang) => {
-                document.getElementById('page-title').innerText = texts[lang].title;
-                document.getElementById('long-url-label').innerText = texts[lang].longUrlLabel;
-                document.querySelector('button[type="submit"]').innerText = texts[lang].createShortUrlButton;
-                document.getElementById('language-toggle').innerText = lang === 'en' ? 'Finnish' : 'English';
-            };
+        if (darkMode) {
+          document.documentElement.classList.add("dark");
+          document.getElementById("theme-toggle").innerText = "Light Mode";
+        } else {
+          document.getElementById("theme-toggle").innerText = "Dark Mode";
+        }
 
+        // Language texts
+        const texts = {
+          en: {
+            title: "URL Shortener",
+            longUrlLabel: "Long URL:",
+            createShortUrlButton: "Create Short URL",
+          },
+          fi: {
+            title: "URL-lyhentäjä",
+            longUrlLabel: "Pitkä URL:",
+            createShortUrlButton: "Luo lyhyt URL",
+          },
+        };
+
+        const updateLanguage = (lang) => {
+          console.log(`Updating language to ${lang}`);
+          document.getElementById("page-title").innerText = texts[lang].title;
+          document.getElementById("long-url-label").innerText =
+            texts[lang].longUrlLabel;
+          document.querySelector('button[type="submit"]').innerText =
+            texts[lang].createShortUrlButton;
+          document.getElementById("language-toggle").innerText =
+            lang === "en" ? "Finnish" : "English";
+        };
+
+        updateLanguage(language);
+
+        document
+          .getElementById("language-toggle")
+          .addEventListener("click", () => {
+            language = language === "en" ? "fi" : "en"; // Toggle language
+            localStorage.setItem("language", language);
+            console.log(`Language toggled to ${language}`);
             updateLanguage(language);
+          });
 
-            document.getElementById('language-toggle').addEventListener('click', () => {
-                const newLang = language === 'en' ? 'fi' : 'en';
-                localStorage.setItem('language', newLang);
-                updateLanguage(newLang);
-            });
+        // Dark mode switcher
+        document
+          .getElementById("theme-toggle")
+          .addEventListener("click", () => {
+            const isDarkMode =
+              document.documentElement.classList.contains("dark");
+            if (isDarkMode) {
+              document.documentElement.classList.remove("dark");
+              localStorage.setItem("darkMode", "false");
+              document.getElementById("theme-toggle").innerText = "Dark Mode";
+              console.log("Dark mode disabled");
+            } else {
+              document.documentElement.classList.add("dark");
+              localStorage.setItem("darkMode", "true");
+              document.getElementById("theme-toggle").innerText = "Light Mode";
+              console.log("Dark mode enabled");
+            }
+          });
 
-            // Dark mode switcher
-            document.getElementById('theme-toggle').addEventListener('click', () => {
-                const isDarkMode = document.documentElement.classList.contains('dark');
-                if (isDarkMode) {
-                    document.documentElement.classList.remove('dark');
-                    localStorage.setItem('darkMode', 'false');
-                    document.getElementById('theme-toggle').innerText = 'Dark Mode';
-                } else {
-                    document.documentElement.classList.add('dark');
-                    localStorage.setItem('darkMode', 'true');
-                    document.getElementById('theme-toggle').innerText = 'Light Mode';
-                }
-            });
+        const token = localStorage.getItem("authToken"); // Retrieve token from local storage or other secure place
+        console.log(`Auth token retrieved: ${token}`);
 
-            const token = localStorage.getItem('authToken'); // Retrieve token from local storage or other secure place
+        document
+          .getElementById("url-form")
+          .addEventListener("submit", async function (event) {
+            event.preventDefault();
+            console.log("Form submitted");
 
-            document.getElementById('url-form').addEventListener('submit', async function(event) {
-                event.preventDefault();
-                
-                const form = event.target;
-                const formData = new FormData(form);
-                
-                const response = await fetch('/api/create', {
-                    method: 'POST',
-                    headers: {
-                        //'Authorization': `Bearer ${token}`, // Insert actual token
-                        'Content-Type': 'application/json' // Ensure the content type is set
-                    },
-                    body: JSON.stringify(Object.fromEntries(formData))
-                });
-                
-                const data = await response.json();
-                document.getElementById('short-url-result').innerHTML = 
-                    response.ok ? `<p class="text-green-500">Short URL: <a href="${data.short_url}" target="_blank" class="text-blue-500 hover:underline">${data.short_url}</a></p>` : `<p class="text-red-500">${data.error}</p>`;
-            });
-        });
+            const form = event.target;
+            const formData = new FormData(form);
+            const formDataObject = Object.fromEntries(formData);
+            console.log("Form data:", formDataObject);
+
+            try {
+              const response = await fetch("/api/create", {
+                method: "POST",
+                headers: {
+                  //'Authorization': `Bearer ${token}`, // Insert actual token
+                  "Content-Type": "application/json", // Ensure the content type is set
+                },
+                body: JSON.stringify(formDataObject),
+              });
+
+              const data = await response.json();
+              console.log("API response:", data);
+
+              document.getElementById("short-url-result").innerHTML = response.ok
+                ? `<p class="text-green-500">Short URL: <a href="${data.short_url}" target="_blank" class="text-blue-500 hover:underline">${data.short_url}</a></p>`
+                : `<p class="text-red-500">${data.error}</p>`;
+            } catch (error) {
+              console.error("Error:", error);
+              document.getElementById("short-url-result").innerHTML = `<p class="text-red-500">An error occurred: ${error.message}</p>`;
+            }
+          });
+      });
     </script>
-</body>
+  </body>
 </html>

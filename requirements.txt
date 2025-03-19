@@ -2,6 +2,6 @@ git+https://github.com/botsarefuture/DatabaseManager.git#egg=DatabaseManager
 Flask==3.1.0
 git+https://github.com/botsarefuture/flask_autosec.git#egg=flask_autosec
 flask_lac==1.0.0
-itsdangerous==2.1.2
+itsdangerous # Fix dependency hell with Flask
 pymongo==4.11.3
 Requests==2.32.3

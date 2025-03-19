@@ -1,5 +1,5 @@
 from utils import process_object_ids
-from flask import Flask, request, jsonify, redirect, render_template
+from flask import Flask, abort, request, jsonify, redirect, render_template
 from pymongo import MongoClient
 import hashlib
 import datetime
@@ -11,6 +11,10 @@ import logging
 from matomo import MatomoClient  # Updated import for Matomo
 from passman import PasswordManager
 
+from flask_lac import AuthPackage, login_required, current_user
+import random
+import string
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,7 +24,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'your_secret_key')
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://95.216.148.93:27017/')
 RATE_LIMIT = os.getenv('RATE_LIMIT', '5 per minute')
 MATOMO_URL = os.getenv('MATOMO_URL', 'https://matomo.luova.club/matomo.php')
-MATOMO_SITE_ID = os.getenv('MATOMO_SITE_ID', '3')
+MATOMO_SITE_ID = os.getenv('MATOMO_SITE_ID', '7')
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
@@ -31,6 +35,9 @@ clicks_collection = db['clicks']
 users_collection = db['users']
 tokens_collection = db['tokens']
 unregistered_users_collection = db['unregistered_users']
+
+# Initialize the authentication package
+auth_package = AuthPackage(app, app_id="67da6a5df14ba9204442dec9")
 
 
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
@@ -74,128 +81,78 @@ def verify_token(token):
         logger.error(f"Token verification error: {e}")
         return None
 
-@app.route('/')
-def home():
+@app.route("/home/")
+def index():
+    # user has logged out, so render a page that says they have logged out, and provide a link to the login page
+    return render_template("home.html")
     return render_template('index.html')
 
-@app.route('/api/register', methods=['POST'])
-@limiter.limit('10 per minute')
-def register():
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
+@app.route('/')
+@login_required
+def home():
+    print(current_user._info)
+    return render_template('index.html')
 
-    if not username or not password:
-        return jsonify({'error': 'Username and password are required'}), 400
-
-    existing_user = users_collection.find_one({'username': username})
-    if existing_user:
-        return jsonify({'error': 'Username already exists'}), 409
-    
-    hashed_password = PasswordManager.hash_password(password)
-
-    users_collection.insert_one({
-        'username': username,
-        'password_hash': hashed_password,
-        'created_at': datetime.datetime.now(datetime.timezone.utc)
-    })
-
-    # Track user registration with Matomo
-    matomo_client.track_event(request,category='User', action='Register', name=username)
-    
-    return jsonify({'message': 'User registered successfully'}), 201
-
-@app.route('/api/login', methods=['POST'])
-@limiter.limit('10 per minute')
-def login():
-    data = request.json
-    username = data.get('username')
-    password = data.get('password')
-
-    user = users_collection.find_one({'username': username})
-    if not user or not PasswordManager.check_password(user['password_hash'], password):
-        return jsonify({'error': 'Invalid credentials'}), 401
-
-    token = generate_token(user['_id'])
-    
-    # Track user login with Matomo
-    matomo_client.track_event(request,category='User', action='Login', name=username)
-    
-    return jsonify({'token': token})
 @app.route('/api/create', methods=['POST'])
-@limiter.limit('10 per minute')
+@login_required
 def create_short_url():
-    token = request.headers.get('Authorization')
-    if token is not None:
-        user_id = verify_token(token)
-    else:
-        user_id = None
-    
+
     # Get the user's IP address for tracking unregistered users
     user_ip = request.remote_addr
+    user_id = current_user._info['_id']
+    
+    if not current_user:
+        print('Unauthorized: current_user not authenticated')
+        abort(401, description='Unauthorized: current_user not authenticated')
+        return ''
 
-    if user_id:
-        # Registered user - no restrictions
-        long_url = request.json.get('long_url')
-        if not long_url:
-            return jsonify({'error': 'long_url is required'}), 400
-        
-        short_hash = hashlib.md5(long_url.encode()).hexdigest()[:6]
-        existing_entry = urls_collection.find_one({'short_hash': short_hash})
-        if existing_entry:
-            return jsonify({'short_url': f'https://link.luova.club/{short_hash}'})
-        
-        urls_collection.insert_one({'long_url': long_url, 'short_hash': short_hash, 'user_id': user_id})
-
-        # Track URL creation with Matomo
-        matomo_client.track_event(request, category='URL', action='Create', name=short_hash)
-        
-        return jsonify({'short_url': f'https://link.luova.club/{short_hash}'})
-    
-    # For unregistered users
-    today = datetime.datetime.now(datetime.timezone.utc).date()  # Use date part of datetime
-    daily_limit = 3
-    
-    # Convert the date to datetime at midnight for storage and comparison
-    today_start = datetime.datetime.combine(today, datetime.time.min)
-    
-    # Check if this IP has created URLs today
-    count_entry = unregistered_users_collection.find_one({
-        'ip_address': user_ip,
-        'date': today_start  # Use datetime for query
-    })
-    
-    if count_entry:
-        if count_entry['count'] >= daily_limit:
-            return jsonify({'error': 'Daily limit of 3 URLs exceeded'}), 403
-        else:
-            unregistered_users_collection.update_one(
-                {'_id': count_entry['_id']},
-                {'$inc': {'count': 1}}
-            )
-    else:
-        unregistered_users_collection.insert_one({
-            'ip_address': user_ip,
-            'date': today_start,  # Use datetime for insertion
-            'count': 1
-        })
-    
+    # Registered user - no restrictions
     long_url = request.json.get('long_url')
     if not long_url:
         return jsonify({'error': 'long_url is required'}), 400
     
-    short_hash = hashlib.md5(long_url.encode()).hexdigest()[:6]
-    existing_entry = urls_collection.find_one({'short_hash': short_hash})
-    if existing_entry:
-        return jsonify({'short_url': f'https://link.luova.club/{short_hash}'})
-    
-    urls_collection.insert_one({'long_url': long_url, 'short_hash': short_hash, 'ip_address': user_ip})
+    while True:
+        random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=4))
+        short_hash = hashlib.md5(f"{long_url}{random_str}".encode()).hexdigest()[:6]
+        if not urls_collection.find_one({'short_hash': short_hash}):
+            break
+        
+    urls_collection.insert_one({'long_url': long_url, 'short_hash': short_hash, 'user': {'user_id': user_id, 'ip_address': user_ip}})
 
     # Track URL creation with Matomo
     matomo_client.track_event(request, category='URL', action='Create', name=short_hash)
     
     return jsonify({'short_url': f'https://link.luova.club/{short_hash}'})
 
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    """
+    Render dashboard with user's URLs and their clicks count.
+
+    Returns
+    -------
+    str
+        Rendered HTML for the dashboard.
+    """
+    user_id = current_user._info['_id']
+    urls = urls_collection.find({'user.user_id': user_id})
+    updated_urls = []
+    for url in urls:
+        # Count clicks for each URL by its short_hash
+        clicks_count = clicks_collection.count_documents({'short_hash': url['short_hash']})
+        url['clicks_count'] = clicks_count
+        updated_urls.append(url)
+        
+    return render_template('dashboard.html', urls=process_object_ids(updated_urls))
+
+@app.route("/api/my-urls")
+@login_required
+def my_urls():
+    user_id = current_user._info['_id']
+    urls = urls_collection.find({'user.user_id': user_id})
+    url_list = list(urls)
+    return jsonify(process_object_ids(url_list))
 
 
 @app.route('/<short_hash>', methods=['GET'])

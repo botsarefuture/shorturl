@@ -1,6 +1,6 @@
-DatabaseManager>=1.0.0,<=1.2.0
+git+https://github.com/botsarefuture/DatabaseManager.git#egg=DatabaseManager
 Flask==3.1.0
-flask_autosec==0.3.2
+git+https://github.com/botsarefuture/flask_autosec.git@0.3.2#egg=flask_autosec
 flask_lac==1.0.0
 itsdangerous==2.1.2
 pymongo==4.11.3

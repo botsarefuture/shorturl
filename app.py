@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 SECRET_KEY = os.getenv('SECRET_KEY', 'your_secret_key')
 MONGO_URI = os.getenv('MONGO_URI', Config.MONGO_URI)
-RATE_LIMIT = os.getenv('RATE_LIMIT', '5 per minute')
+
 MATOMO_URL = os.getenv('MATOMO_URL', 'https://matomo.luova.club/matomo.php')
 MATOMO_SITE_ID = os.getenv('MATOMO_SITE_ID', '7')
 

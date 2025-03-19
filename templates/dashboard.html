@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<div class="container my-4">
+    <h1 id="page-title" class="display-4 mb-4">Dashboard</h1>
+    <p class="lead mb-4">Welcome to your URL management dashboard. Below is a list of your short URLs.</p>
+    <table class="table table-dark table-hover">
+        <thead>
+            <tr>
+                <th>Long URL</th>
+                <th>Short URL</th>
+                <th>Clicks</th>
+            </tr>
+        </thead>
+        <tbody id="urls_container">
+            <!-- URL rows will be injected by JavaScript -->
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    /**
+     * Fetch the user's URLs from the API and populate the dashboard table.
+     *
+     * This function retrieves URL data from the '/api/my-urls' endpoint and dynamically
+     * creates table rows displaying the long URL, short URL, and the click count.
+     *
+     * Notes
+     * -----
+     * Uses underscore for field names (e.g. long_url, short_hash, clicks_count).
+     */
+    document.addEventListener("DOMContentLoaded", () => {
+        fetch('/api/my-urls')
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById("urls_container");
+                data.forEach(url => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                    <td>${url.long_url || ''}</td>
+                    <td>
+                        <a href="https://link.luova.club/${url.short_hash}" class="text-info" target="_blank">
+                            ${url.short_hash}
+                        </a>
+                    </td>
+                    <td>${url.clicks_count || 0}</td>
+                    `;
+                    container.appendChild(row);
+                });
+            })
+            .catch(err => {
+                console.error("Error fetching URLs:", err);
+            });
+    });
+</script>
+{% endblock %}

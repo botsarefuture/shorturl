@@ -1,19 +1,22 @@
 from utils import process_object_ids
 from flask import Flask, abort, request, jsonify, redirect, render_template
-from pymongo import MongoClient
+
+from DatabaseManager import DatabaseManager
+
 import hashlib
 import datetime
 from itsdangerous import URLSafeTimedSerializer
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 import os
 import logging
 from matomo import MatomoClient  # Updated import for Matomo
-from passman import PasswordManager
 
 from flask_lac import AuthPackage, login_required, current_user
+from flask_lac.user import role_required
 import random
+from config import Config
 import string
+
+from flask_autosec import FlaskAutoSec
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -21,15 +24,24 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 SECRET_KEY = os.getenv('SECRET_KEY', 'your_secret_key')
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://95.216.148.93:27017/')
+MONGO_URI = os.getenv('MONGO_URI', Config.MONGO_URI)
 RATE_LIMIT = os.getenv('RATE_LIMIT', '5 per minute')
 MATOMO_URL = os.getenv('MATOMO_URL', 'https://matomo.luova.club/matomo.php')
 MATOMO_SITE_ID = os.getenv('MATOMO_SITE_ID', '7')
 
+
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
-client = MongoClient(MONGO_URI)
-db = client['url_shortener']
+
+sec = FlaskAutoSec(True)
+
+sec.init_app(app)
+
+
+client = DatabaseManager().get_instance(Config)
+db = client.get_db()
+
 urls_collection = db['urls']
 clicks_collection = db['clicks']
 users_collection = db['users']
@@ -41,12 +53,6 @@ auth_package = AuthPackage(app, app_id="67da6a5df14ba9204442dec9")
 
 
 serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
-limiter = Limiter(
-    get_remote_address,
-    app=app,
-    default_limits=[RATE_LIMIT],
-    storage_uri=MONGO_URI
-)
 
 # Initialize Matomo tracker
 matomo_client = MatomoClient(MATOMO_URL, MATOMO_SITE_ID)
@@ -85,7 +91,6 @@ def verify_token(token):
 def index():
     # user has logged out, so render a page that says they have logged out, and provide a link to the login page
     return render_template("home.html")
-    return render_template('index.html')
 
 @app.route('/')
 @login_required
@@ -96,8 +101,7 @@ def home():
 @app.route('/api/create', methods=['POST'])
 @login_required
 def create_short_url():
-
-    # Get the user's IP address for tracking unregistered users
+    # Get the user's IP address for tracking and the authenticated user's ID
     user_ip = request.remote_addr
     user_id = current_user._info['_id']
     
@@ -117,9 +121,12 @@ def create_short_url():
         if not urls_collection.find_one({'short_hash': short_hash}):
             break
         
-    urls_collection.insert_one({'long_url': long_url, 'short_hash': short_hash, 'user': {'user_id': user_id, 'ip_address': user_ip}})
+    # Refactored URL document creation for clarity and consistency
+    user_info = {'user_id': user_id, 'ip_address': user_ip}
+    url_data = {'long_url': long_url, 'short_hash': short_hash, 'user': user_info}
+    urls_collection.insert_one(url_data)
 
-    # Track URL creation with Matomo
+    # Track URL creation with Matomo in a professional manner
     matomo_client.track_event(request, category='URL', action='Create', name=short_hash)
     
     return jsonify({'short_url': f'https://link.luova.club/{short_hash}'})
@@ -128,12 +135,12 @@ def create_short_url():
 @login_required
 def dashboard():
     """
-    Render dashboard with user's URLs and their clicks count.
+    Render the user's dashboard with URLs and their corresponding click counts.
 
     Returns
     -------
     str
-        Rendered HTML for the dashboard.
+        HTML content rendered for the dashboard.
     """
     user_id = current_user._info['_id']
     urls = urls_collection.find({'user.user_id': user_id})
@@ -156,9 +163,9 @@ def my_urls():
 
 
 @app.route('/<short_hash>', methods=['GET'])
-@limiter.limit('100 per minute')
 def redirect_to_long_url(short_hash):
     entry = urls_collection.find_one({'short_hash': short_hash})
+    
     if entry:
         clicks_collection.insert_one({
             'short_hash': short_hash,
@@ -171,39 +178,37 @@ def redirect_to_long_url(short_hash):
         matomo_client.track_event(request,category='URL', action='Redirect', name=short_hash)
         
         return redirect(entry['long_url'])
+    
     return jsonify({'error': 'URL not found'}), 404
 
 @app.route('/api/clicks', methods=['GET'])
-@limiter.limit('10 per minute')
+@login_required
 def get_clicks():
-    token = request.headers.get('Authorization')
-    user_id = verify_token(token)
-    if not user_id:
-        return jsonify({'error': 'Invalid or expired token'}), 401
-
+    """
+    Retrieve clicks for the specified short hash for the authenticated user.
+    
+    Parameters
+    ----------
+    None
+    
+    Returns
+    -------
+    flask.Response
+        JSON response containing the list of clicks or an error message.
+    """
+    user_id = current_user._info['_id']
     short_hash = request.args.get('short_hash')
     if not short_hash:
         return jsonify({'error': 'short_hash is required'}), 400
-    
+
     clicks = clicks_collection.find({'short_hash': short_hash, 'user_id': user_id})
     clicks_list = list(clicks)
     
     return jsonify(process_object_ids(clicks_list))
 
-@app.route('/admin/users', methods=['GET'])
-@limiter.limit('5 per minute')
-def admin_get_users():
-    # Admin functionality to list users
-    users = users_collection.find()
-    user_list = list(users)
-    
-    # Track admin action with Matomo
-    matomo_client.track_event(request,category='Admin', action='Get Users')
-    
-    return jsonify(process_object_ids(user_list))
-
 @app.route('/admin/urls', methods=['GET'])
-@limiter.limit('5 per minute')
+@login_required
+@role_required(10)
 def admin_get_urls():
     # Admin functionality to list URLs
     urls = urls_collection.find()

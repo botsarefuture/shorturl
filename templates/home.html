@@ -1,0 +1,27 @@
+<!-- filepath: /home/verso/shorturl/templates/home.html -->
+{% extends "base.html" %}
+
+{% block title %}Logged Out{% endblock %}
+
+{% block content %}
+<div class="container my-4 text-center">
+    <h1 class="display-4 mb-4 text-danger">
+        You have logged out. Redirecting to login...
+    </h1>
+    <p class="lead mb-4">
+        Redirect in <span id="countdown">5</span> seconds.
+    </p>
+</div>
+<script>
+    var time_left = 5;
+    var countdown_ele = document.getElementById("countdown");
+    var timer = setInterval(function() {
+        time_left -= 1;
+        countdown_ele.textContent = time_left;
+        if (time_left <= 0) {
+            clearInterval(timer);
+            window.location.href = "{{ url_for('login') }}";
+        }
+    }, 1000);
+</script>
+{% endblock %}

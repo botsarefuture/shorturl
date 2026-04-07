@@ -4,4 +4,4 @@ git+https://github.com/botsarefuture/flask_autosec.git#egg=flask_autosec
 flask_lac==1.0.0
 itsdangerous # Fix dependency hell with Flask
 pymongo==4.11.3
-Requests==2.32.3
+Requests==2.33.0
